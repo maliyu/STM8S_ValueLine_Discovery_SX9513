@@ -23,6 +23,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm8s_it.h"
+#include "task.h"
 
 /** @addtogroup Template_Project
   * @{
@@ -72,9 +73,7 @@ INTERRUPT_HANDLER_TRAP(TRAP_IRQHandler)
 INTERRUPT_HANDLER(TLI_IRQHandler, 0)
 
 {
-  /* In order to detect unexpected events during development,
-     it is recommended to set a breakpoint on the following instruction.
-  */
+  SX9513_Handler();
 }
 
 /**
@@ -339,6 +338,7 @@ INTERRUPT_HANDLER(TIM1_CAP_COM_IRQHandler, 12)
     /* In order to detect unexpected events during development,
        it is recommended to set a breakpoint on the following instruction.
     */
+   get_input();
  }
 #endif /*STM8S208 or STM8S207 or STM8S103 or STM8S903 or STM8AF62Ax or STM8AF52Ax */
 

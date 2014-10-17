@@ -21,20 +21,54 @@
 
 
 /* Includes ------------------------------------------------------------------*/
+#include <string.h>
 #include "stm8s.h"
+#include "sx9513.h"
+#include "soft_i2c.h"
+#include "task.h"
+#include "board.h"
 
 /* Private defines -----------------------------------------------------------*/
-#define FIRMWARE_VERSION        "1.0.0"
+#define FIRMWARE_VERSION        "2.0.0"
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
-void main(void)
+static tTaskInstance *p_task = 0;
+
+static void update_fwVersion(void)
 {
+  uint8_t version[VERSION_MAX_SIZE+1];
+  
+  memset(version, 0, VERSION_MAX_SIZE+1);
+  EEPROM_Read(FIRMWARE_VERSION_ADDRESS, version, VERSION_MAX_SIZE);
+  if(strcmp(version, FIRMWARE_VERSION) != 0)
+  {
+    EEPROM_Write(FIRMWARE_VERSION_ADDRESS, FIRMWARE_VERSION, VERSION_MAX_SIZE);
+  }
+}
+
+void main(void)
+{   
+  disableInterrupts();
+  
+  /* STM8S003 hardware init */
+  Board_Init();
+  
+  /* Semtech SX9513 init */
+  SX9513_Init();
+  
+  /* main application init */
+  p_task = Task_Init();
+  
+  update_fwVersion();
+  
+  enableInterrupts();
+  
   /* Infinite loop */
   while (1)
   {
+    Task_Exec(p_task);
   }
-  
 }
 
 #ifdef USE_FULL_ASSERT

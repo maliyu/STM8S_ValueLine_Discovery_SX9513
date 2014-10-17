@@ -1,3 +1,10 @@
 This is Semtech SX9513 cap-touch controller on STM8S value line discovery kit. 
 
-<v1.0.0> template project from STM. Add in FIRMWARE_VERSION in main.c.
+github: https://github.com/maliyu/STM8S_ValueLine_Discovery_SX9513.git 
+
+<1.0.0> Template project from STM. Add in FIRMWARE_VERSION in main.c.
+<2.0.0> 
+		- Port SX9513 driver from STM8S_Discovery_SX9513. 
+		- Change misc.c to task.c and misc.h to task.h.
+		- Change I2C pin from PB4 to PB2 for SCL, from PB5 to PB3 for SDA.
+		- Add in UART support and user command support.
