@@ -25,6 +25,9 @@
 
 #define IS_SX9513_DIFFDATA(a) ((a & 0x01) == 0x01)
 #define IS_SX9513_COMP(a) ((a & 0x02) == 0x02)
+#define IS_SX9513_TOUCHSTATUS(a) ((a & 0x04) == 0x04)
+
+#define IS_ASCII_NUMERIC(a) (a >= 0x30 && a <= 0x39)
 
 typedef enum
 {
@@ -34,9 +37,10 @@ typedef enum
   CMD_QUERY
 }CMD_TYPE;
 
-static uint8_t IrqSrc;
-static uint8_t PreTouchStatus;
+static uint8_t IrqSrc = 0;
+static uint8_t PreTouchStatus = 0;
 static uint8_t TouchStatus;
+//static uint8_t touchIRQ = 0x20;
 static uint8_t PowerFunc = 0;
 static uint8_t SpeedFunc = 0;
 static uint8_t TimerFunc = 0;
@@ -45,6 +49,7 @@ static uint8_t input_buffer[INPUT_BUFFER_SIZE];
 static tTaskInstance taskInstance;
 static uint8_t sx9513DiffDataCnt = 0;
 static uint8_t sx9513CompCnt = 0;
+static uint8_t sx9513TouchStatusCnt = 0;
 static uint8_t sx9513Tuner = 0x00;
 static char byteMap[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
 
@@ -58,6 +63,19 @@ static void discard_input_buffer(void)
   }
   
   total_input_char_number = 0;
+}
+
+static void convert_ascii2byte(uint8_t *p_ascii, uint8_t *p_byte)
+{
+  if(p_ascii == 0 || p_byte == 0)
+  {
+    return;
+  }
+  
+  if(IS_ASCII_NUMERIC(p_ascii[0]) && IS_ASCII_NUMERIC(p_ascii[1]))
+  {
+    *p_byte = (((p_ascii[0]-0x30) & 0x0F)<<4) | ((p_ascii[1]-0x30) & 0x0F);
+  }
 }
 
 /* command would be like at command */
@@ -137,6 +155,36 @@ static void cmd_decoder(uint8_t *p_cmd, uint8_t cmdLen)
         {
           sx9513CompCnt = 5;
           sx9513Tuner |= 0x02;
+        }
+      }
+      else if(strcmp(cmdBody, "at+touchstatus") == 0)
+      {
+        /* This command is to check touch detected on indicated BL channel */
+        if(cmdOptions[0] == '?')
+        {
+          sx9513TouchStatusCnt = 30;
+          sx9513Tuner |= 0x04;
+        }
+      }
+      else if(strcmp(cmdBody, "at+sx9513conf") == 0)
+      {
+        /* This command is to check or set configuration parameter of SX9513 */
+        if(IS_ASCII_NUMERIC(cmdOptions[0]) && IS_ASCII_NUMERIC(cmdOptions[1]))
+        {
+          if(cmdOptions[2] == ',')
+          {
+            /* Set parameter */
+          }
+          else
+          {
+            /* Check parameter */
+            uint8_t address = 0;
+            uint8_t para = 0;
+            
+            convert_ascii2byte(cmdOptions, &address);
+            para = SX9513_Read(address);
+            Uart_Prints(&para, 1); 
+          }
         }
       }
     }
@@ -220,6 +268,8 @@ void Task_Exec(tTaskInstance *task)
     return;
   }
   
+  //SX9513_Handler();
+  
   disableInterrupts();
   /* check if the last char is Carriage Return(CR) */
   /* If yes, then decode the message */
@@ -253,6 +303,7 @@ void Task_Exec(tTaskInstance *task)
       capSenseDiffData[0] = SX9513_Read(0x68);
       capSenseDiffData[1] = SX9513_Read(0x69);
       
+#if 0
       /* convert 2's complement to +xxxx or -xxxx format */
       /* Here xxxx is decimal value, not hex value       */  
       if(capSenseDiffData[0] & 0x10 == 0x10)
@@ -271,6 +322,9 @@ void Task_Exec(tTaskInstance *task)
       {
         diffDataStr[0] = '+';
       }
+#else
+      diffDataStr[0] = 0x20;
+#endif
       
       
       bytesToHexString(&diffDataStr[1], capSenseDiffData, sizeof(capSenseDiffData));
@@ -321,7 +375,38 @@ void Task_Exec(tTaskInstance *task)
     }
     else
     {
-      sx9513Tuner &= ~(0x01);
+      sx9513Tuner &= ~(0x02);
+    }
+  }
+  else if(IS_SX9513_TOUCHSTATUS(sx9513Tuner))
+  {
+    if(sx9513TouchStatusCnt > 0)
+    {
+      char compStr[6];
+      uint8_t capSenseComp[2];
+  
+      /* Offset compensation DAC code*/
+      capSenseComp[0] = SX9513_Read(0x00);
+      capSenseComp[1] = SX9513_Read(0x01);
+      
+      bytesToHexString(&compStr[0], capSenseComp, sizeof(capSenseComp));
+      /* create new line for last data */
+      if(sx9513TouchStatusCnt == 1)
+      {
+        compStr[4] = '\r';
+      }
+      else
+      {
+        compStr[4] = 0x20;
+      }
+      compStr[5] = '\0';
+      Uart_Prints((unsigned char *)compStr, strlen(compStr));
+      
+      --sx9513TouchStatusCnt;
+    }
+    else
+    {
+      sx9513Tuner &= ~(0x04);
     }
   }
 }
@@ -359,7 +444,39 @@ void SX9513_Handler(void)
 	
 	IrqSrc = SX9513_Read(0x00);
 	TouchStatus = SX9513_Read(0x01);
-	
+        
+        //Uart_Prints(&IrqSrc, 1);
+        //Uart_Prints(&TouchStatus, 1);
+        //tmp = '\r';
+        //Uart_Prints(&tmp, 1);
+#if 1
+        if((IrqSrc & 0x40) == 0x40)
+        {
+          /* Touch IRQ */
+          if((TouchStatus & 0x01) == 0x01)
+          {
+            Touch_Indicate();
+          }
+          else if((TouchStatus & 0x02) == 0x02)
+          {
+            Touch_Indicate();
+            
+          }
+          else if((TouchStatus & 0x04) == 0x04)
+          {
+            Touch_Indicate();
+          }
+          else if((TouchStatus & 0x08) == 0x08)
+          {
+            Touch_Indicate();
+          }
+        }
+        else if((IrqSrc & 0x20) == 0x20)
+        {
+          /* Release IRQ */
+        }
+#endif     
+#if 0	
 	if((IrqSrc & 0x40) == 0x40)
 	{
 		// detect touch event
@@ -372,7 +489,7 @@ void SX9513_Handler(void)
 			{
 				SX9513_Write(0x0C, 0x03);
 				SX9513_Write(0x10, 0xFF);
-				SX9513_Write(0x1E, 0x0F);
+				//SX9513_Write(0x1E, 0x0F);
 				PowerFunc = 1;
 				SpeedFunc = 1;
 				TimerFunc = 0;
@@ -381,7 +498,7 @@ void SX9513_Handler(void)
 			{
 				SX9513_Write(0x0C, 0x00);
 				SX9513_Write(0x10, 0x00);
-				SX9513_Write(0x1E, 0x01);
+				//SX9513_Write(0x1E, 0x01);
 				PowerFunc = 0;
 			}
 		}
@@ -489,5 +606,6 @@ void SX9513_Handler(void)
                 //Touch_Indicate();
 	}
 	
-	PreTouchStatus = TouchStatus;
+	PreTouchStatus = TouchStatus;   
+#endif
 }

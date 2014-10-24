@@ -8,3 +8,8 @@ github: https://github.com/maliyu/STM8S_ValueLine_Discovery_SX9513.git
 		- Change misc.c to task.c and misc.h to task.h.
 		- Change I2C pin from PB4 to PB2 for SCL, from PB5 to PB3 for SDA.
 		- Add in UART support and user command support.
+<2.1.0>
+		- Turn off SX9513 LED driver since it may cause interference. This is due to weak signal from touch sensor under 5mm glass. Now LED1 on STM8S ValueLine Discovery will be toggled when touch event is detected.
+		- Fine tune for 5mm glass enviroment.
+		- Add in command "at+touchstatus" and "at+sx9513conf". Please view Yosun SX9513 Touch Command Syntax.pdf for details.
+			

@@ -29,7 +29,7 @@
 #include "board.h"
 
 /* Private defines -----------------------------------------------------------*/
-#define FIRMWARE_VERSION        "2.0.0"
+#define FIRMWARE_VERSION        "2.1.0"
 /* Private function prototypes -----------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
 
